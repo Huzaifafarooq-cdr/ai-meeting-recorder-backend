@@ -135,9 +135,11 @@ export async function transcribeFile({ filePath, mimeType, liveSegments = [] }) 
     words = applyLiveSpeakers(words, liveSegments);
   }
 
-  // built from per-word speakers: Deepgram's utterances can span a speaker change and hide it
+  // built from per-word speakers: Deepgram's utterances can span a speaker change and hide it.
+  // With a single speaker, split per sentence so the speaker stage can still separate short replies
+  const maxWords = speakerCount(words) === 1 ? 1 : 40;
   return {
-    segments: splitBySpeaker(words, 0, { maxGap: 1.5, maxWords: 40 }).filter((s) => s.text.trim()),
+    segments: splitBySpeaker(words, 0, { maxGap: 1.5, maxWords }).filter((s) => s.text.trim()),
     durationSec: json.metadata?.duration,
     language: env.STT_LANGUAGE === 'multi' ? mainLanguage(words) : (json.results?.channels?.[0]?.detected_language ?? env.STT_LANGUAGE),
   };

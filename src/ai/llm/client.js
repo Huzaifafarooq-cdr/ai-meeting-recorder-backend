@@ -4,7 +4,7 @@ import { fetchJson, sleep } from '../../lib/http.js';
 import { createLimiter, mapLimit } from '../../lib/concurrency.js';
 import { logger } from '../../lib/logger.js';
 import { AppError } from '../../lib/AppError.js';
-import { ACTIONS_SYSTEM, CLEAN_SYSTEM, INSIGHTS_SYSTEM, NOTES_SYSTEM, SUMMARY_SYSTEM } from './prompts.js';
+import { ACTIONS_SYSTEM, CLEAN_SYSTEM, INSIGHTS_SYSTEM, NOTES_SYSTEM, SPEAKERS_SYSTEM, SUMMARY_SYSTEM } from './prompts.js';
 
 const MAX_CHARS = 48_000;
 
@@ -105,6 +105,16 @@ export async function extractActions(transcript) {
     .filter((a) => a?.text)
     .map((a) => ({ text: String(a.text), owner: a.owner ? String(a.owner) : undefined, due: a.due ? String(a.due) : undefined }));
   return { actionItems, keyDecisions: strings(res.keyDecisions) };
+}
+
+// lines: [{ text, pause }] in order. Returns one speaker index per line, or null if the answer doesn't fit
+export async function inferSpeakers(lines) {
+  const input = lines.map((l, i) => `${i + 1}. (pause ${l.pause.toFixed(1)}s) ${l.text}`).join('\n');
+  const res = await chatJson(SPEAKERS_SYSTEM, input);
+  const speakers = res.speakers;
+  if (!Array.isArray(speakers) || speakers.length !== lines.length) return null;
+  if (!speakers.every((s) => Number.isInteger(s) && s >= 0 && s < 10)) return null;
+  return speakers;
 }
 
 export async function generateInsights(transcript) {

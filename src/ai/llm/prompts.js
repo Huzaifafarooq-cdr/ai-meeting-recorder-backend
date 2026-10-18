@@ -27,6 +27,14 @@ export const INSIGHTS_SYSTEM = `Generate metadata for a meeting transcript.
 Respond with JSON: {"title": "concise descriptive meeting title, max 8 words", "keywords": ["5 to 10 important keywords or technologies"]}
 Example title: "CRM Authentication Planning Meeting".`;
 
+export const SPEAKERS_SYSTEM = `Voice-based speaker detection heard only one speaker in this recording, which often happens when someone replies very briefly.
+You get the sentences in order, each with the pause before it in seconds. Decide who said each sentence.
+Split into different speakers ONLY when the text is clearly a conversation between people, for example:
+a question followed by an answer to it, a greeting answered by another greeting, a short reply like "yes", "no" or "nothing" to what was just asked,
+people addressing each other by name, or one person introducing another.
+One person thinking aloud, asking rhetorical questions, giving a talk or dictating notes is ONE speaker. If you are not sure, use one speaker.
+Respond with JSON: {"speakers": [0, 0, 1, ...]} with exactly one integer per sentence, 0 for the first person who speaks, 1 for the second, and so on.`;
+
 export const NOTES_SYSTEM = `Condense this part of a long meeting transcript into dense factual notes.
 Keep speaker names/labels, decisions, tasks with owners and dates, numbers and technical terms.
 Respond with JSON: {"notes": "..."}`;

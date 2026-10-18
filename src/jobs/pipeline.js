@@ -5,7 +5,7 @@ import { TranscriptSegment } from '../models/TranscriptSegment.js';
 import { AppError } from '../lib/AppError.js';
 import { logger } from '../lib/logger.js';
 import { mapLimit } from '../lib/concurrency.js';
-import { cleanSentence, wordCount } from '../lib/text.js';
+import { cleanSentence, speakerLabel, wordCount } from '../lib/text.js';
 import { emitRecordingUpdate } from '../realtime/eventBus.js';
 import { dropLocalCopy, persist, resolvePath, restoreLocal, stat } from '../storage/index.js';
 import { stt } from '../ai/stt/index.js';
@@ -14,6 +14,7 @@ import { llm } from '../ai/llm/index.js';
 const CLEAN_BATCH = 40;
 const LOW_CONFIDENCE = 0.6;
 const MIN_AUDIO_BYTES = 1024;
+const MAX_TEXT_SPEAKER_LINES = 150;
 const ANALYSIS = new Set(['summary', 'action_items', 'insights']);
 
 const stageOf = (rec, key) => rec.stages.find((s) => s.key === key);
@@ -106,7 +107,17 @@ const handlers = {
 
   async diarization(ctx) {
     const { rec } = ctx;
-    const segments = await loadSegments(rec);
+    let segments = await loadSegments(rec);
+    // voices too short to tell apart: let the LLM split clear dialogue (question → answer etc.)
+    if (segments.length >= 2 && segments.length <= MAX_TEXT_SPEAKER_LINES && new Set(segments.map((s) => s.speaker)).size === 1) {
+      try {
+        const lines = segments.map((s, i) => ({ text: s.text, pause: i ? Math.max(0, s.start - segments[i - 1].end) : 0 }));
+        const turns = await llm.inferSpeakers(lines);
+        if (turns && new Set(turns).size > 1) segments = segments.map((s, i) => ({ ...s, speaker: speakerLabel(turns[i]) }));
+      } catch (err) {
+        logger.warn('Text-based speaker check failed, keeping one speaker', { recording: rec.id, error: err.message });
+      }
+    }
     const merged = [];
     for (const s of segments) {
       const last = merged[merged.length - 1];

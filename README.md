@@ -216,7 +216,7 @@ Open http://localhost:5173, create an account, then record a meeting or upload a
 |---|---|
 | Audio upload | Checks that the audio exists and isn't empty; moves it to GridFS |
 | Speech-to-text | Pre-recorded transcription of the full file (more accurate than the live pass); flags low confidence |
-| Speaker separation | Normalizes diarized speakers (Speaker A, B…) and merges fragments into speaker turns |
+| Speaker separation | Speakers come from Deepgram's per-word diarization (Speaker A, B…). If that finds only one speaker, three fallbacks run in order: a single-language Deepgram pass (nova-3's multilingual mode sometimes merges speakers), the live pass's speaker labels aligned by timestamp, and finally an LLM check that splits only clear dialogue (a question and its answer, greetings, short replies) when the replies are too short for any voice model. Fragments are then merged into speaker turns |
 | Transcript generation | LLM cleanup in batches of 40 segments, run in parallel up to `LLM_CONCURRENCY`. A failed batch falls back to rule-based cleanup with a `PARTIAL_CLEANUP` warning |
 | AI summary | Overview, topics, decisions, outcome. Long meetings are map-reduced (chunk notes, then a final summary) |
 | Action items | Tasks with owner and due date, plus key decisions |
