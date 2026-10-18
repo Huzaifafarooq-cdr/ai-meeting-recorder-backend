@@ -77,7 +77,45 @@ function applySpeakers(words, reference) {
   });
 }
 
-export async function transcribeFile({ filePath, mimeType }) {
+const normWord = (t = '') => t.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '');
+
+// live timestamps can be slightly off from the file's; estimate the shift by finding each
+// live segment's first word in the final words and taking the median difference
+function liveOffset(words, segs) {
+  const diffs = [];
+  for (const s of segs) {
+    const first = normWord(s.text.split(/\s+/)[0]);
+    if (!first) continue;
+    let best = null;
+    for (const w of words) {
+      if (Math.abs(w.start - s.start) > 3 || normWord(w.word) !== first) continue;
+      if (!best || Math.abs(w.start - s.start) < Math.abs(best.start - s.start)) best = w;
+    }
+    if (best) diffs.push(best.start - s.start);
+  }
+  if (!diffs.length) return 0;
+  diffs.sort((a, b) => a - b);
+  return diffs[Math.floor(diffs.length / 2)];
+}
+
+// take speakers from the live transcript of the same recording, matching each word to the live segment at that time
+function applyLiveSpeakers(words, liveSegments) {
+  const sorted = [...liveSegments].sort((a, b) => a.start - b.start);
+  const shift = liveOffset(words, sorted);
+  const segs = sorted.map((s) => ({ ...s, start: s.start + shift, end: s.end + shift }));
+  const index = new Map();
+  let j = 0;
+  return words.map((w) => {
+    const mid = (w.start + w.end) / 2;
+    while (j < segs.length - 1 && segs[j].end < mid) j++;
+    let seg = segs[j];
+    if (j > 0 && mid < seg.start && seg.start - mid > mid - segs[j - 1].end) seg = segs[j - 1];
+    if (!index.has(seg.speaker)) index.set(seg.speaker, index.size);
+    return { ...w, speaker: index.get(seg.speaker) };
+  });
+}
+
+export async function transcribeFile({ filePath, mimeType, liveSegments = [] }) {
   const json = await listen(filePath, mimeType, env.STT_LANGUAGE);
   let words = wordsOf(json);
 
@@ -90,6 +128,11 @@ export async function transcribeFile({ filePath, mimeType }) {
     } catch (err) {
       logger.warn('Speaker re-check failed, keeping single speaker', { error: err.message });
     }
+  }
+
+  // the full-file pass can still miss a short second speaker that the live pass caught
+  if (words.length && speakerCount(words) === 1 && new Set(liveSegments.map((s) => s.speaker)).size > 1) {
+    words = applyLiveSpeakers(words, liveSegments);
   }
 
   // built from per-word speakers: Deepgram's utterances can span a speaker change and hide it
