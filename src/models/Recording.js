@@ -68,9 +68,17 @@ const recordingSchema = new Schema(
 recordingSchema.index({ user: 1, createdAt: -1 });
 recordingSchema.index({ user: 1, status: 1 });
 recordingSchema.index({ status: 1, lastActivityAt: 1 });
+// by default MongoDB reads a `language` field as the text-search language and rejects
+// values it doesn't know ("hi", "multi"), so point the override at an unused field
+const SEARCH_LANGUAGE_FIELD = 'searchLanguage';
 recordingSchema.index(
   { title: 'text', keywords: 'text', 'summary.overview': 'text', transcriptText: 'text' },
-  { name: 'recording_search', weights: { title: 10, keywords: 6, 'summary.overview': 3, transcriptText: 1 } }
+  {
+    name: 'recording_search',
+    weights: { title: 10, keywords: 6, 'summary.overview': 3, transcriptText: 1 },
+    default_language: 'english',
+    language_override: SEARCH_LANGUAGE_FIELD,
+  }
 );
 
 recordingSchema.methods.addWarning = function addWarning(code, message) {
@@ -78,3 +86,13 @@ recordingSchema.methods.addWarning = function addWarning(code, message) {
 };
 
 export const Recording = mongoose.model('Recording', recordingSchema);
+
+// index options can't be changed in place, so recreate the search index if it's the old version
+export async function ensureSearchIndex() {
+  const indexes = await Recording.collection.indexes().catch(() => []);
+  const search = indexes.find((i) => i.name === 'recording_search');
+  if (search && search.language_override !== SEARCH_LANGUAGE_FIELD) {
+    await Recording.collection.dropIndex('recording_search');
+  }
+  await Recording.createIndexes();
+}

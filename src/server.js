@@ -6,6 +6,7 @@ import { connectDB, disconnectDB } from './config/db.js';
 import { logger } from './lib/logger.js';
 import { startKeepAlive, stopKeepAlive } from './lib/keepAlive.js';
 import { createApp } from './app.js';
+import { ensureSearchIndex } from './models/Recording.js';
 import { attachWebSocketServer } from './realtime/wsServer.js';
 import { startRelayListener, stopRelayListener } from './realtime/eventBus.js';
 import { ensureStorage, TMP_DIR } from './storage/index.js';
@@ -23,6 +24,7 @@ async function cleanTmp() {
 
 async function main() {
   await connectDB();
+  await ensureSearchIndex();
   await ensureStorage();
   await cleanTmp();
 
