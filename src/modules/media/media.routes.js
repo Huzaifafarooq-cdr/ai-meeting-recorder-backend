@@ -26,7 +26,12 @@ mediaRouter.get(
     const { userId } = verifyMediaToken(req.query.token, req.params.id);
     const rec = await Recording.findOne({ _id: req.params.id, user: userId }).select('audio');
     if (!rec?.audio?.key) throw notFound('Audio');
-    const headers = { 'Content-Type': rec.audio.mimeType || 'application/octet-stream', 'Cache-Control': 'private, max-age=600' };
+    const headers = {
+      'Content-Type': rec.audio.mimeType || 'application/octet-stream',
+      'Cache-Control': 'private, max-age=600',
+      // the frontend may be on another domain; access is already limited by the signed token
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    };
 
     const stored = await findStored(rec.audio.key);
     if (!stored) {
