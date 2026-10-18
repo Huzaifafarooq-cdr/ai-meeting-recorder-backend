@@ -53,8 +53,11 @@ ai-meeting-recorder/
 
 **Dashboard**: new recording, upload audio, recent meetings, live processing status, usage stats and global search (`Ctrl K` / `⌘K`).
 
+**Languages**: English and Hindi are both supported, including Hinglish (switching between the two in the same sentence). Hindi is transcribed in Devanagari, and the summary, action items, decisions and title are generated from the transcript in either language. Set with `STT_LANGUAGE=multi` (see [Getting started](#getting-started)).
+
 **Live recording**
 - Start, pause, resume and stop with a pause-aware timer
+- Record from the **microphone** or from a **meeting tab** (Google Meet, Zoom or Teams in the browser): the tab's audio and your microphone are mixed, so everyone in the call is captured, even with headphones (Chrome and Edge on desktop)
 - Live waveform, input level meter and microphone picker
 - Real-time transcript: partial words appear immediately and are replaced by finalized text, with auto-scroll and a "jump to latest" button
 - Multi-speaker detection with the active speaker shown live
@@ -119,6 +122,7 @@ Minimum `.env` values:
 |---|---|
 | `JWT_ACCESS_SECRET`, `JWT_MEDIA_SECRET` | Random strings, at least 32 characters: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `DEEPGRAM_API_KEY` | Deepgram key |
+| `STT_LANGUAGE` | `multi` for English + Hindi (and Hinglish), `en` for English only, `hi` for Hindi only |
 | `LLM_API_KEY` | Key for the LLM provider |
 | `LLM_BASE_URL`, `LLM_MODEL` | Defaults to Gemini (`gemini-flash-lite-latest`). For OpenAI: `https://api.openai.com/v1` and e.g. `gpt-4o-mini` |
 | `MONGODB_URI` + `USE_IN_MEMORY_DB` | Set `USE_IN_MEMORY_DB=true` to start an embedded MongoDB, or `false` and a `MONGODB_URI` (Atlas or local) |
@@ -353,7 +357,9 @@ How the design supports thousands of concurrent users:
 ## Assumptions and limitations
 
 - Live transcription streams WebM/Opus, which Chrome, Edge and Firefox produce. Safari records MP4/AAC, so live captions may not work there, but the transcript after recording still does.
-- Speaker labels come from Deepgram's diarization. Live and final labels can differ; the final transcript is authoritative.
+- Languages: with `STT_LANGUAGE=multi`, Deepgram's nova-3 handles English and Hindi (and also Spanish, French, German, Italian, Portuguese, Dutch, Russian and Japanese), including switching mid-sentence. Other languages, such as Urdu or Tamil, aren't supported.
+- Meeting-tab recording needs Chrome or Edge on desktop with "Also share tab audio" turned on. Firefox and Safari can't share tab audio, and phones can't share tabs, so there the app records the microphone only.
+- Speaker labels come from Deepgram's diarization. Live and final labels can differ; the final transcript is authoritative. Very short replies (a word or two) can't be told apart by voice; for those the final transcript falls back to a text-based check that only splits clear dialogue.
 - The embedded MongoDB (`USE_IN_MEMORY_DB=true`) is for local development only and doesn't support a separate worker process; use a real `MONGODB_URI` in production.
 - Action items are matched by position, so reprocessing a recording generates a fresh list and clears ticks.
 - AI output quality depends on the chosen LLM. Free Gemini tiers have daily request limits; when a quota is exhausted, the app reports it instead of retrying forever.
