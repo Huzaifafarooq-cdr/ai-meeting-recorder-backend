@@ -3,6 +3,7 @@ import WebSocket from 'ws';
 import { env } from '../../config/env.js';
 import { fetchJson } from '../../lib/http.js';
 import { AppError } from '../../lib/AppError.js';
+import { logger } from '../../lib/logger.js';
 import { speakerLabel } from '../../lib/text.js';
 
 const BASE = 'api.deepgram.com/v1/listen';
@@ -33,15 +34,17 @@ function splitBySpeaker(words, offset, { maxGap = Infinity, maxWords = Infinity 
   }));
 }
 
-export async function transcribeFile({ filePath, mimeType }) {
+const SINGLE_LANGUAGES = new Set(['en', 'hi', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'ja']);
+
+function listen(filePath, mimeType, language) {
   const params = new URLSearchParams({
     model: env.DEEPGRAM_MODEL,
-    language: env.STT_LANGUAGE,
+    language,
     diarize: 'true',
     punctuate: 'true',
     smart_format: 'true',
   });
-  const json = await fetchJson(
+  return fetchJson(
     `https://${BASE}?${params}`,
     {
       method: 'POST',
@@ -51,13 +54,49 @@ export async function transcribeFile({ filePath, mimeType }) {
     },
     { provider: 'Deepgram', timeoutMs: Math.max(env.AI_TIMEOUT_MS, 10 * 60 * 1000) }
   );
+}
+
+const wordsOf = (json) => json.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
+const speakerCount = (words) => new Set(words.map((w) => w.speaker ?? 0)).size;
+
+// multilingual results tag every word with its language
+function mainLanguage(words) {
+  const counts = new Map();
+  for (const w of words) if (w.language) counts.set(w.language, (counts.get(w.language) ?? 0) + 1);
+  const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+  return SINGLE_LANGUAGES.has(top) ? top : 'en';
+}
+
+// take speaker labels from another pass over the same audio, matching words by time
+function applySpeakers(words, reference) {
+  let j = 0;
+  return words.map((w) => {
+    const mid = (w.start + w.end) / 2;
+    while (j < reference.length - 1 && reference[j].end < mid) j++;
+    return { ...w, speaker: reference[j]?.speaker ?? w.speaker };
+  });
+}
+
+export async function transcribeFile({ filePath, mimeType }) {
+  const json = await listen(filePath, mimeType, env.STT_LANGUAGE);
+  let words = wordsOf(json);
+
+  // nova-3 in multilingual mode sometimes puts every word on one speaker. A single-language
+  // pass separates speakers reliably, so use it for the speaker labels and keep the multilingual text
+  if (env.STT_LANGUAGE === 'multi' && words.length >= 20 && speakerCount(words) === 1) {
+    try {
+      const reference = wordsOf(await listen(filePath, mimeType, mainLanguage(words)));
+      if (speakerCount(reference) > 1) words = applySpeakers(words, reference);
+    } catch (err) {
+      logger.warn('Speaker re-check failed, keeping single speaker', { error: err.message });
+    }
+  }
 
   // built from per-word speakers: Deepgram's utterances can span a speaker change and hide it
-  const words = json.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
   return {
     segments: splitBySpeaker(words, 0, { maxGap: 1.5, maxWords: 40 }).filter((s) => s.text.trim()),
     durationSec: json.metadata?.duration,
-    language: json.results?.channels?.[0]?.detected_language ?? env.STT_LANGUAGE,
+    language: env.STT_LANGUAGE === 'multi' ? mainLanguage(words) : (json.results?.channels?.[0]?.detected_language ?? env.STT_LANGUAGE),
   };
 }
 
