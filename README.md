@@ -72,6 +72,14 @@ ai-meeting-recorder/
 
 **History**: list, search across title / transcript / summary / keywords, filter by date and status, replay, delete, pagination.
 
+**Meeting page tabs**: *Summary & actions* and *Transcript*, plus a *Processing* tab when processing fails partway, so finished results stay visible next to the failed stage.
+
+**Input validation in the browser**: forms are checked before anything is sent, using the same rules as the server (`src/lib/validation.js`), so invalid input never reaches the API:
+- Login and register: required fields, email format, name length, password rules (8+ characters, a letter and a number). The first invalid field gets focus and its message clears as you type.
+- Title and speaker editors: empty titles are rejected; saving without changes doesn't call the API; only changed speaker names are sent.
+- Search: at least 2 characters, and a "From" date after the "To" date is flagged instead of searched.
+- Repeated clicks on an action item while it's saving are ignored.
+
 ---
 
 ## Tech stack
@@ -126,7 +134,9 @@ npm install
 npm run dev
 ```
 
-Leave `VITE_API_URL` empty to use the Vite dev proxy (`/api` and `/ws` go to `http://localhost:5000`). In production, set it to the API origin before `npm run build`.
+Leave `VITE_API_URL` empty to use the Vite dev proxy (`/api` and `/ws` go to `http://localhost:5000`). Requests are then same-origin, so CORS never gets in the way locally. In production, set it to the API origin before `npm run build`.
+
+In development (`NODE_ENV` other than `production`), the backend accepts requests and WebSocket connections from any `localhost` / `127.0.0.1` port. In production, only the origins listed in `CLIENT_ORIGIN` are allowed.
 
 Open http://localhost:5173, create an account, then record a meeting or upload an audio file.
 
@@ -261,7 +271,9 @@ How the design supports thousands of concurrent users:
 - **Tokens**: short-lived JWT access token (15 min) kept **in memory only** on the client, never in localStorage. Opaque refresh token in an `httpOnly`, `SameSite` cookie scoped to `/api/auth`, stored hashed and **rotated on every use**. Reusing a rotated token revokes the whole session family. Logout revokes the token on the server.
 - **CSRF**: cookie-authenticated endpoints (`/refresh`, `/logout`) require an `X-Requested-With` header, which can't be sent cross-site without passing CORS.
 - **Authorization**: every recording query is scoped to the signed-in user, so other users' data returns "not found". Malformed IDs return 404.
-- **WebSockets**: the token is verified during the HTTP upgrade (unauthenticated sockets are never opened), `Origin` is checked against an allow-list, frames are size-capped, and a ping/pong heartbeat removes dead connections.
+- **CORS and origins**: one origin check is shared by the REST API and WebSockets. Production allows only the `CLIENT_ORIGIN` list; development additionally allows `localhost` / `127.0.0.1` on any port.
+- **WebSockets**: the token is verified during the HTTP upgrade (unauthenticated sockets are never opened), `Origin` is checked against the allow-list above, frames are size-capped, and a ping/pong heartbeat removes dead connections.
+- **Input validation**: the browser validates forms before sending (fewer pointless requests, instant feedback); the server validates every input again with zod and is always the authority.
 - **Uploaded audio**: streamed to disk (never fully buffered in memory), size-limited, MIME type and extension allow-listed, stored under server-generated keys, and served only through a **short-lived, recording-scoped signed media token** with `Cache-Control: private`. Deleting a recording deletes its audio, segments and jobs.
 - **Hardening**: helmet headers, strict CORS, zod validation on every input, JSON body limits, rate limiting on auth, uploads and the API, central error handling that never leaks stack traces, and startup validation of all secrets.
 
@@ -271,6 +283,7 @@ How the design supports thousands of concurrent users:
 
 | Scenario | Behaviour |
 |---|---|
+| Invalid form input (empty fields, bad email, weak password, empty title, reversed date range) | Message next to the field, focus moves to it, and no request is sent |
 | Microphone permission denied / not found / busy | Specific message with how to fix it |
 | Unsupported browser or insecure context | Recording disabled with an explanation and an upload alternative |
 | Microphone unplugged or recorder error mid-meeting | Recording stops cleanly; captured audio is kept and submitted |
@@ -301,6 +314,7 @@ How the design supports thousands of concurrent users:
 - **End-to-end API checks** (`backend/scripts/e2e.mjs`, run with `npm run test:e2e` while the API is running) cover registration and login, token refresh and logout, protected routes, uploads, the live WebSocket protocol (streaming, acknowledgements, reconnect and resume, gap detection and fallback upload), search and filters, speaker and title renaming, signed audio streaming, silent and empty audio, and user isolation. They call the configured AI providers, so they use a small amount of API credit.
 - **Linting**: `npm run lint` in both projects.
 - **Browser testing** of the full flow in Chrome (register, upload, live recording with pause/resume, results, speaker renaming, search, logout), including the phone-width layout.
+- **Validation checks** in Chrome with the API mocked, confirming that invalid login, register and search input shows the right message and sends no request.
 
 ---
 
@@ -308,7 +322,7 @@ How the design supports thousands of concurrent users:
 
 ### Suggested walkthrough (about 10 minutes)
 
-1. **Auth**: register with a weak password to see field-level validation, then with a valid one. Reload the page: the session survives. Log out and back in.
+1. **Auth**: submit the empty form and then a weak password to see field-level validation (no request is sent; check the browser's Network tab), then register with valid details. Reload the page: the session survives. Log out and back in.
 2. **Live recording**: open *New recording*, allow the microphone, and speak (two people if possible). Watch the timer, waveform, level meter, live transcript (partials becoming final text), active speaker and session status. Pause (timer stops), resume, then stop.
 3. **Automatic processing**: you're taken to the meeting page, where the seven stages tick off live. No button needs to be pressed.
 4. **Results**: review the summary, key decisions, action items (tick one off and reload), keywords and suggested title. Open *Transcript*, switch Clean/Original, rename speakers, search inside the transcript, and click a timestamp to play from that point.
@@ -326,8 +340,8 @@ How the design supports thousands of concurrent users:
 | Authentication and security | `modules/auth/*`, `middleware/auth.js`, signed media tokens, see [Security](#security) |
 | AI integration | `ai/stt/deepgram.js` (streaming + pre-recorded with diarization), `ai/llm/client.js` (OpenAI-compatible, rate-limit aware), prompts in `ai/llm/prompts.js` |
 | Real-time communication | `/ws/live` binary protocol (`realtime/liveHandler.js`, `hooks/useLiveTranscript.js`) and `/ws/events` progress push (`hooks/useRealtimeEvents.js`) |
-| Error handling | See [Error handling](#error-handling); stage-level retry, fallback upload, sweeper for interrupted recordings |
-| Code quality | Small focused modules, consistent naming, ESLint in both projects, input validation at every boundary |
+| Error handling | See [Error handling](#error-handling); stage-level retry, fallback upload, sweeper for interrupted recordings, browser-side form validation |
+| Code quality | Small focused modules, consistent naming, ESLint in both projects, shared validation rules (`src/lib/validation.js`) mirrored by zod schemas on the server |
 | Database design | See [Database design](#database-design); segments collection, text index, TTL indexes |
 | Performance | Canvas visualizations, batched live updates, memoized transcript blocks, background jobs, Range streaming |
 | Scalability thinking | See [Scalability](#scalability); stateless API, independent workers, cross-process event relay |
