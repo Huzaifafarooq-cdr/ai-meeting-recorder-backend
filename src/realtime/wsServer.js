@@ -21,7 +21,6 @@ function handleEventsConnection(ws, { user }) {
   ws.send(JSON.stringify({ type: 'hello' }));
 }
 
-// /ws/live and /ws/events, token checked on upgrade
 export function attachWebSocketServer(server) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 * 1024 });
 
@@ -58,7 +57,6 @@ export function attachWebSocketServer(server) {
     });
   });
 
-  // ping to detect dead connections
   const interval = setInterval(() => {
     for (const ws of wss.clients) {
       if (!ws.isAlive) {

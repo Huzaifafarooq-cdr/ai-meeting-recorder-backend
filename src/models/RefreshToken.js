@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 
-// stored hashed. reusing a rotated token revokes the whole family
 const refreshTokenSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },

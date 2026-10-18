@@ -4,12 +4,9 @@ import { logger } from '../lib/logger.js';
 import { createAppendStream, ensureDirFor, stat } from '../storage/index.js';
 import { stt } from '../ai/stt/index.js';
 
-// /ws/live protocol
-// client: binary [flags:u8][seq:u32 BE][audio], json pause | resume | activity | stop
-// server: ready, transcript, ack, stt_error, stopped
 
-const sessions = new Map(); // recordingId -> ws
-const state = new Map(); // recordingId -> seq/bytes state
+const sessions = new Map();
+const state = new Map();
 
 const FLUSH_MS = 1500;
 const HEARTBEAT_MS = 30_000;
@@ -24,7 +21,6 @@ export async function handleLiveConnection(ws, { user, recordingId, timeOffsetSe
   if (!rec) return ws.close(4404, 'Recording not found');
   if (rec.status !== 'recording') return ws.close(4409, 'Recording is no longer active');
 
-  // wait for the old connection to finish writing
   const prev = sessions.get(recordingId);
   if (prev) {
     prev.ws.terminate();
@@ -38,7 +34,6 @@ export async function handleLiveConnection(ws, { user, recordingId, timeOffsetSe
     const existing = await stat(rec.audio.key);
     s = {
       expectedSeq: rec.liveChunks ?? 0,
-      // earlier chunks were saved but the file is gone (server redeployed mid-recording)
       gap: Boolean(rec.audioGap) || (!existing && (rec.liveChunks ?? 0) > 0),
       bytes: existing?.size ?? 0,
       idx: await TranscriptSegment.countDocuments({ recording: rec._id, kind: 'live' }),
@@ -134,7 +129,6 @@ export async function handleLiveConnection(ws, { user, recordingId, timeOffsetSe
           s.bytes += payload.length;
           s.expectedSeq += 1;
         } else if (seq >= s.expectedSeq) {
-          // missed chunks, client will upload the full file
           s.gap = true;
           s.expectedSeq = seq + 1;
         }
@@ -159,7 +153,6 @@ export async function handleLiveConnection(ws, { user, recordingId, timeOffsetSe
 
   ws.on('close', () => {
     if (stopped) return;
-    // keep state so the client can reconnect
     cleanup();
     live.close();
     flushFinals();

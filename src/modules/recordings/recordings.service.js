@@ -141,7 +141,6 @@ export async function list(userId, { q, from, to, status, page, limit }) {
   }
 
   const terms = q.toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
-  // full-text search
   let filter = { ...base, $text: { $search: q } };
   let [items, total] = await Promise.all([
     Recording.find(filter, { score: { $meta: 'textScore' } })
@@ -151,7 +150,6 @@ export async function list(userId, { q, from, to, status, page, limit }) {
       .limit(limit),
     Recording.countDocuments(filter),
   ]);
-  // fallback to regex for partial words
   if (total === 0) {
     const rx = new RegExp(escapeRegex(q), 'i');
     filter = { ...base, $or: [{ title: rx }, { keywords: rx }, { 'summary.overview': rx }, { transcriptText: rx }] };

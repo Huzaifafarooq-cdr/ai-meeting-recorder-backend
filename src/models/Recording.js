@@ -41,7 +41,6 @@ const recordingSchema = new Schema(
     durationSec: { type: Number, default: 0 },
     language: String,
 
-    // live streaming state
     liveChunks: { type: Number, default: 0 },
     audioGap: { type: Boolean, default: false },
     lastActivityAt: Date,
@@ -58,7 +57,6 @@ const recordingSchema = new Schema(
     keyDecisions: [String],
     keywords: [String],
 
-    // for text search, not returned in lists
     transcriptText: { type: String, select: false },
     stats: { segmentCount: Number, wordCount: Number, avgConfidence: Number, speakerCount: Number },
 

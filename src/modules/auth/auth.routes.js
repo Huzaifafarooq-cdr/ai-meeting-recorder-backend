@@ -30,7 +30,6 @@ const registerSchema = z.object({
 });
 const loginSchema = z.object({ email, password: z.string().min(1, 'Password is required.').max(128) });
 
-// CSRF: cookie endpoints need a custom header
 function requireCsrfHeader(req, _res, next) {
   if (req.get('X-Requested-With') !== 'XMLHttpRequest') return next(new AppError(403, 'CSRF_CHECK_FAILED', 'Missing request header.'));
   next();

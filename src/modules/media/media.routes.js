@@ -7,10 +7,8 @@ import { Recording } from '../../models/Recording.js';
 import { findStored, openStoredStream, resolvePath, stat } from '../../storage/index.js';
 import { verifyMediaToken } from '../auth/tokens.js';
 
-// audio streaming, auth via token in query since <audio> can't send headers
 export const mediaRouter = Router();
 
-// single range only, e.g. "bytes=0-99", "bytes=100-", "bytes=-500"
 function parseRange(header, size) {
   const m = /^bytes=(\d*)-(\d*)$/.exec(header ?? '');
   if (!m || (!m[1] && !m[2])) return null;
@@ -29,13 +27,11 @@ mediaRouter.get(
     const headers = {
       'Content-Type': rec.audio.mimeType || 'application/octet-stream',
       'Cache-Control': 'private, max-age=600',
-      // the frontend may be on another domain; access is already limited by the signed token
       'Cross-Origin-Resource-Policy': 'cross-origin',
     };
 
     const stored = await findStored(rec.audio.key);
     if (!stored) {
-      // not copied to the database yet (processing just started)
       if (!(await stat(rec.audio.key))) throw notFound('Audio');
       return res.sendFile(resolvePath(rec.audio.key), { headers });
     }
@@ -52,6 +48,6 @@ mediaRouter.get(
       res.set('Content-Length', size);
     }
     const stream = openStoredStream(stored._id, range ? { start: range.start, end: range.end + 1 } : undefined);
-    await pipeline(stream, res).catch(() => {}); // client closed the player
+    await pipeline(stream, res).catch(() => {});
   })
 );

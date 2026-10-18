@@ -24,7 +24,6 @@ export function createApp() {
 
   app.use((req, res, next) => {
     const start = Date.now();
-    // save it before routers change req.path
     const path = req.path;
     res.on('finish', () => {
       if (path === '/api/health') return;

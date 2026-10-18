@@ -8,7 +8,7 @@ export function cleanSentence(raw) {
   t = t.replace(/\s+/g, ' ').trim();
   t = t.replace(LEADING_MARKERS, '');
   t = t.replace(TRAILING_MARKERS, '');
-  t = t.replace(/\b(\w+)(\s+\1\b)+/gi, '$1'); // "the the"
+  t = t.replace(/\b(\w+)(\s+\1\b)+/gi, '$1');
   t = t.replace(/\s+([,.!?;:])/g, '$1').replace(/,+/g, ',').replace(/^[,.\s]+/, '');
   t = t.replace(/\bi\b/g, 'I').replace(/\bi'(m|ll|ve|d)\b/gi, (_, s) => `I'${s.toLowerCase()}`);
   t = t.replace(/(^|[.!?]\s+)([a-z])/g, (_, p, c) => p + c.toUpperCase());

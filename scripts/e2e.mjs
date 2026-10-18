@@ -1,4 +1,3 @@
-// e2e tests, run with: npm run test:e2e
 const BASE = process.env.BASE ?? 'http://localhost:5000';
 const WS_BASE = BASE.replace(/^http/, 'ws');
 let pass = 0;
@@ -157,7 +156,6 @@ let uploadId;
   r = await req('/api/recordings/upload', { method: 'POST', body: new FormData() });
   check('upload without file 400', r.status === 400 && r.data.error.code === 'NO_FILE', r);
 
-  // no durationSec
   const fd = new FormData();
   fd.append('audio', new Blob([wav(40)], { type: 'audio/wav' }), 'Weekly_sync-call.wav');
   r = await req('/api/recordings/upload', { method: 'POST', body: fd });
@@ -165,7 +163,6 @@ let uploadId;
   uploadId = r.data.recording?.id;
   check('title from filename', r.data.recording?.title === 'Weekly sync call', r.data.recording?.title);
 
-  // a plain tone, so no speech is expected
   const rec = await waitFor(uploadId, ['completed', 'failed']);
   check('upload processed to completed', rec?.status === 'completed', rec);
   check('no speech warning', rec?.warnings?.some((w) => w.code === 'NO_SPEECH'), rec?.warnings);
@@ -260,19 +257,18 @@ console.log('\n# Network interruption: reconnect + resume');
   ws = await openWs(`${WS_BASE}/ws/live?recordingId=${id}&token=${token}`);
   const ready = await ws.waitFor((m) => m.type === 'ready');
   check('reconnect resumes at next seq', ready?.resumeFromSeq === 10, ready);
-  ws.send(frame(0, Buffer.alloc(1500, 1), true)); // header replay
+  ws.send(frame(0, Buffer.alloc(1500, 1), true));
   for (let seq = 10; seq < 20; seq++) ws.send(frame(seq, Buffer.alloc(1500, 2)));
   ws.send(JSON.stringify({ type: 'stop', totalChunks: 20 }));
   const stopped = await ws.waitFor((m) => m.type === 'stopped');
   check('resumed stream complete', stopped?.complete === true, stopped);
 
-  // lost chunks
   r = await req('/api/recordings', { method: 'POST', body: { mimeType: 'audio/webm' } });
   const id2 = r.data.recording.id;
   ws = await openWs(`${WS_BASE}/ws/live?recordingId=${id2}&token=${token}`);
   await ws.waitFor((m) => m.type === 'ready');
   ws.send(frame(0, Buffer.alloc(1500, 1)));
-  ws.send(frame(3, Buffer.alloc(1500, 1))); // gap
+  ws.send(frame(3, Buffer.alloc(1500, 1)));
   ws.send(JSON.stringify({ type: 'stop', totalChunks: 4 }));
   const st2 = await ws.waitFor((m) => m.type === 'stopped');
   check('gap detected as incomplete', st2?.complete === false, st2);

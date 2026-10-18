@@ -1,4 +1,3 @@
-// standalone worker (npm run worker). needs a shared MongoDB, set RUN_WORKER=false on the API
 import { connectDB, disconnectDB } from '../config/db.js';
 import { ensureStorage } from '../storage/index.js';
 import { logger } from '../lib/logger.js';

@@ -15,12 +15,11 @@ const NON_RETRYABLE_MANUALLY = new Set(['AUDIO_EMPTY', 'AUDIO_MISSING']);
 
 let running = false;
 let active = 0;
-let claiming = false; // prevent overlapping claims
+let claiming = false;
 let pollTimer = null;
 const inFlight = new Set();
 
 export async function enqueueProcessing(rec, { fromStage = 'upload' } = {}) {
-  // copy the audio to GridFS before queueing, so a worker on another machine can load it
   if (rec.audio?.key && (await stat(rec.audio.key))) {
     try {
       await persist(rec.audio.key, rec.audio.mimeType);
@@ -46,7 +45,7 @@ async function claimJob() {
     {
       $or: [
         { status: 'queued', runAt: { $lte: now } },
-        { status: 'running', lockedUntil: { $lt: now } }, // lease expired
+        { status: 'running', lockedUntil: { $lt: now } },
       ],
     },
     { $set: { status: 'running', lockedBy: WORKER_ID, lockedUntil: new Date(Date.now() + LEASE_MS) }, $inc: { attempts: 1 } },
@@ -63,7 +62,6 @@ async function handleFailure(job, err) {
   const lastError = { code: err.code ?? 'PROCESSING_ERROR', message: err.message };
 
   if (retryable && job.attempts < job.maxAttempts) {
-    // longer backoff for rate limits
     const base = lastError.code === 'AI_RATE_LIMITED' ? 30_000 : 5000;
     const delay = Math.max(err.retryAfterMs ?? 0, base * 2 ** (job.attempts - 1));
     const nextRunAt = new Date(Date.now() + delay);
@@ -88,7 +86,6 @@ async function handleFailure(job, err) {
 }
 
 async function execute(job) {
-  // extend lease while the job is running
   const heartbeat = setInterval(() => {
     Job.updateOne({ _id: job._id, lockedBy: WORKER_ID }, { lockedUntil: new Date(Date.now() + LEASE_MS) }).catch(() => {});
   }, LEASE_MS / 3);
@@ -97,7 +94,7 @@ async function execute(job) {
     await Job.updateOne({ _id: job._id }, { status: 'done', lockedUntil: null });
   } catch (err) {
     if (err instanceof mongoose.Error.DocumentNotFoundError) {
-      await Job.updateOne({ _id: job._id }, { status: 'cancelled' }); // recording was deleted
+      await Job.updateOne({ _id: job._id }, { status: 'cancelled' });
     } else {
       await handleFailure(job, err).catch((e) => logger.error('Failed to record job failure', { error: e.message }));
     }
@@ -147,7 +144,6 @@ export async function stopWorker() {
   const deadline = Date.now() + 10_000;
   while (active > 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
   if (inFlight.size) {
-    // release unfinished jobs on shutdown (doesn't count as an attempt)
     await Job.updateMany(
       { _id: { $in: [...inFlight] }, lockedBy: WORKER_ID, status: 'running' },
       { $set: { status: 'queued', runAt: new Date(), lockedUntil: null }, $inc: { attempts: -1 } }

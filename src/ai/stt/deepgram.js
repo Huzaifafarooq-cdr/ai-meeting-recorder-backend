@@ -7,7 +7,6 @@ import { speakerLabel } from '../../lib/text.js';
 
 const BASE = 'api.deepgram.com/v1/listen';
 
-// split words into turns by speaker
 function splitBySpeaker(words, offset) {
   const runs = [];
   for (const w of words) {
@@ -95,7 +94,6 @@ export function createLiveSession({ onTranscript, onError, timeOffsetSec = 0 }) 
     if (msg.is_final) {
       for (const run of runs) onTranscript({ ...run, isFinal: true });
     } else {
-      // interim result
       const last = runs[runs.length - 1];
       onTranscript({ ...last, text: runs.map((r) => r.text).join(' '), start: runs[0].start, isFinal: false });
     }
@@ -116,7 +114,6 @@ export function createLiveSession({ onTranscript, onError, timeOffsetSec = 0 }) 
     },
     setActivity() {},
     keepAlive() {
-      // keepalive, deepgram closes idle streams after ~10s
       if (open && ws.readyState === WebSocket.OPEN && Date.now() - lastAudioAt > 4000) {
         ws.send(JSON.stringify({ type: 'KeepAlive' }));
       }

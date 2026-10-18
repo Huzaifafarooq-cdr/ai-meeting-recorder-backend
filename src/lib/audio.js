@@ -1,10 +1,9 @@
 import fsp from 'node:fs/promises';
 
-// approx bitrates for estimating duration
 const BYTES_PER_SEC = {
-  'audio/webm': 8000, // ~64 kbps opus
+  'audio/webm': 8000,
   'audio/ogg': 8000,
-  'audio/mpeg': 16000, // ~128 kbps
+  'audio/mpeg': 16000,
   'audio/mp4': 16000,
   'audio/aac': 16000,
   'audio/flac': 88000,
@@ -31,7 +30,6 @@ async function wavDuration(filePath) {
   }
 }
 
-// estimate duration if the client didn't send it (exact for wav)
 export async function probeDuration(filePath, mimeType = '') {
   try {
     if (/wav/.test(mimeType)) {

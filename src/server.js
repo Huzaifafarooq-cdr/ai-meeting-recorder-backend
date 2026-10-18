@@ -28,7 +28,7 @@ async function main() {
 
   const server = http.createServer(createApp());
   attachWebSocketServer(server);
-  server.requestTimeout = 30 * 60 * 1000; // big uploads
+  server.requestTimeout = 30 * 60 * 1000;
 
   await startRelayListener();
   if (env.RUN_WORKER) startWorker();
@@ -37,7 +37,6 @@ async function main() {
 
   server.listen(env.PORT, () => {
     logger.info(`API listening on http://localhost:${env.PORT}`);
-    // RENDER_EXTERNAL_URL is set automatically by Render
     startKeepAlive(env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL);
   });
 

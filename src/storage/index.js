@@ -5,8 +5,6 @@ import { pipeline } from 'node:stream/promises';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 
-// audio is kept in MongoDB GridFS so it survives restarts on hosts without a persistent disk.
-// local disk is only a working copy (live recording, uploads, processing)
 const ROOT = path.resolve(env.STORAGE_DIR);
 export const TMP_DIR = path.join(ROOT, 'tmp');
 
@@ -64,7 +62,6 @@ export async function moveInto(tmpPath, key) {
   }
 }
 
-// local working copy
 export async function stat(key) {
   if (!key) return null;
   try {
@@ -91,7 +88,6 @@ export function openStoredStream(id, range) {
   return gridfs().openDownloadStream(id, range);
 }
 
-// copy the local file into GridFS (skipped if the same file is already there)
 export async function persist(key, contentType) {
   const local = await stat(key);
   if (!local) throw new Error(`No local audio for ${key}`);
@@ -102,7 +98,6 @@ export async function persist(key, contentType) {
   await removeStored(key, upload.id);
 }
 
-// download from GridFS when the local copy is gone (restart, other machine)
 export async function restoreLocal(key) {
   if (!key || (await stat(key))) return;
   const stored = await findStored(key);

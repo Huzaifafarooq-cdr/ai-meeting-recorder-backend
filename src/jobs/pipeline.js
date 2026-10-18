@@ -14,7 +14,6 @@ import { llm } from '../ai/llm/index.js';
 const CLEAN_BATCH = 40;
 const LOW_CONFIDENCE = 0.6;
 const MIN_AUDIO_BYTES = 1024;
-// independent of each other, run in parallel
 const ANALYSIS = new Set(['summary', 'action_items', 'insights']);
 
 const stageOf = (rec, key) => rec.stages.find((s) => s.key === key);
@@ -108,7 +107,6 @@ const handlers = {
   async diarization(ctx) {
     const { rec } = ctx;
     const segments = await loadSegments(rec);
-    // merge consecutive segments from the same speaker
     const merged = [];
     for (const s of segments) {
       const last = merged[merged.length - 1];
@@ -139,7 +137,6 @@ const handlers = {
       try {
         cleaned = await llm.cleanSegments(batch.map((s) => ({ id: String(s.idx), speaker: s.speaker, text: s.text })));
       } catch (err) {
-        // fall back to basic cleanup if the llm fails
         failedBatches += 1;
         logger.warn('Transcript cleanup batch failed, using fallback', { recording: rec.id, error: err.message });
       }
@@ -154,7 +151,6 @@ const handlers = {
     rec.set('stats.wordCount', wordCount(rec.transcriptText));
   },
 
-  // return an apply fn instead of mutating rec directly (these run concurrently)
   async summary(ctx) {
     const summary = await llm.summarize(await transcriptFor(ctx));
     return (rec) => {
@@ -191,7 +187,6 @@ function transcriptFor(ctx) {
 
 async function runAnalysis(ctx, keys) {
   const { rec } = ctx;
-  // mongoose doesn't allow parallel save() on the same doc, so queue them
   let chain = Promise.resolve();
   const commit = (mutate) =>
     (chain = chain.then(async () => {
@@ -234,7 +229,6 @@ export async function runPipeline(recordingId, fromStage = 'upload') {
 
 async function runStages(rec, fromStage) {
   const startIdx = Math.max(0, STAGES.indexOf(fromStage));
-  // keep other analysis results on retry
   const keepDone = (key) => ANALYSIS.has(fromStage) && ANALYSIS.has(key) && key !== fromStage && stageOf(rec, key).status === 'done';
   rec.status = 'processing';
   rec.error = undefined;

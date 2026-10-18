@@ -1,7 +1,6 @@
 import { env } from '../config/env.js';
 import { AppError } from './AppError.js';
 
-// retry delay from Retry-After header or gemini error body
 function retryAfterMs(headers, body) {
   const header = Number(headers?.get?.('retry-after'));
   if (header > 0) return header * 1000;
@@ -14,7 +13,6 @@ function providerHttpError(provider, status, body, headers) {
     return new AppError(502, 'AI_AUTH_FAILED', `${provider} rejected the API key. Please check the server configuration.`);
   }
   if (status === 429) {
-    // daily quota, no point retrying
     if (/PerDay/i.test(body)) {
       return new AppError(503, 'AI_QUOTA_EXCEEDED', `${provider}'s daily quota for this API key is used up. Try again tomorrow or use a key with a higher limit.`);
     }

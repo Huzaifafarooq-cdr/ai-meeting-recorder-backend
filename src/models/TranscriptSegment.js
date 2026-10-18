@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 
-// separate collection so long meetings don't hit the 16MB doc limit. kind: live | final
 const segmentSchema = new mongoose.Schema(
   {
     recording: { type: mongoose.Schema.Types.ObjectId, ref: 'Recording', required: true },

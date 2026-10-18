@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 import { logger } from '../lib/logger.js';
 import { toSummary } from '../modules/recordings/recordings.serializer.js';
 
-// local emitter. standalone workers write to a capped collection that the API tails
 const emitter = new EventEmitter();
 emitter.setMaxListeners(0);
 
@@ -39,7 +38,6 @@ export async function startRelayListener() {
   if (listening) return;
   listening = true;
   await ensureRelayCollection();
-  // tailable cursor needs at least one doc
   const last = await relay().find().sort({ $natural: -1 }).limit(1).next();
   let lastId = last?._id ?? (await relay().insertOne({ at: new Date() })).insertedId;
 

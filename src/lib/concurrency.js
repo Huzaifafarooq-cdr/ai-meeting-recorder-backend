@@ -11,7 +11,6 @@ export async function mapLimit(items, limit, fn) {
   return results;
 }
 
-// global limiter shared by all jobs
 export function createLimiter(max) {
   let active = 0;
   const waiting = [];

@@ -8,7 +8,6 @@ const STALE_MS = 30 * 60 * 1000;
 const INTERVAL_MS = 5 * 60 * 1000;
 let timer = null;
 
-// process interrupted live recordings with whatever audio we got
 export async function sweepAbandonedRecordings() {
   const cutoff = new Date(Date.now() - STALE_MS);
   const stale = await Recording.find({

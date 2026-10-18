@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 
-// simple mongo job queue, jobs are claimed with a lease (lockedUntil)
 const jobSchema = new mongoose.Schema(
   {
     type: { type: String, default: 'process_recording' },
@@ -20,7 +19,6 @@ const jobSchema = new mongoose.Schema(
 
 jobSchema.index({ status: 1, runAt: 1 });
 jobSchema.index({ status: 1, lockedUntil: 1 });
-// delete after 7 days
 jobSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 7 * 24 * 3600, partialFilterExpression: { status: { $in: ['done', 'cancelled'] } } });
 
 export const Job = mongoose.model('Job', jobSchema);

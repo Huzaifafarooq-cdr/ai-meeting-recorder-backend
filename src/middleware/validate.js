@@ -13,7 +13,6 @@ export const validate =
     }
   };
 
-// invalid ObjectId -> 404
 export function validId(paramName = 'id', what = 'Recording') {
   return (req, _res, next) => (mongoose.isValidObjectId(req.params[paramName]) ? next() : next(notFound(what)));
 }

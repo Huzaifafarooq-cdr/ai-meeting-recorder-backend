@@ -26,7 +26,6 @@ export function verifyAccessToken(token) {
   }
 }
 
-// short-lived token for <audio src>
 export function signMediaToken(userId, recordingId) {
   return jwt.sign({ typ: 'media', rid: recordingId.toString() }, env.JWT_MEDIA_SECRET, {
     subject: userId.toString(),

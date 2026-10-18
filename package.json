@@ -1,7 +1,7 @@
 {
   "name": "ai-meeting-recorder-backend",
   "version": "1.0.0",
-  "description": "API, realtime gateway and AI processing worker for the AI Meeting Recorder & Smart Notes Portal",
+  "description": "API, realtime gateway and AI processing worker for Buzytech AI Recorder",
   "type": "module",
   "main": "src/server.js",
   "engines": {

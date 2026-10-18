@@ -8,7 +8,6 @@ import { hashToken, newRefreshToken, signAccessToken } from './tokens.js';
 
 const BCRYPT_ROUNDS = 12;
 const REFRESH_GRACE_MS = 15_000;
-// compared against when the email doesn't exist, so the response takes the same time
 const TIMING_HASH = bcrypt.hashSync('no-such-user', BCRYPT_ROUNDS);
 
 async function issueSession(user, { userAgent, family = crypto.randomUUID() } = {}) {
@@ -44,7 +43,6 @@ export async function refresh(rawToken, meta) {
     throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Please log in again.');
   }
   if (stored.revokedAt && Date.now() - stored.revokedAt.getTime() < REFRESH_GRACE_MS) {
-    // already rotated by another tab
     throw new AppError(409, 'REFRESH_CONFLICT', 'Session is being refreshed, please retry.');
   }
   if (stored.revokedAt) {
@@ -54,7 +52,6 @@ export async function refresh(rawToken, meta) {
   const user = await User.findById(stored.user);
   if (!user) throw new AppError(401, 'SESSION_EXPIRED', 'Your session has expired. Please log in again.');
 
-  // atomic so only one refresh wins
   const claimed = await RefreshToken.updateOne({ _id: stored._id, revokedAt: null }, { revokedAt: new Date() });
   if (!claimed.modifiedCount) throw new AppError(409, 'REFRESH_CONFLICT', 'Session is being refreshed, please retry.');
   return issueSession(user, { ...meta, family: stored.family });

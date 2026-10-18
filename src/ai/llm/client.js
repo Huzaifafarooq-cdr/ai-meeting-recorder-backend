@@ -6,7 +6,6 @@ import { logger } from '../../lib/logger.js';
 import { AppError } from '../../lib/AppError.js';
 import { ACTIONS_SYSTEM, CLEAN_SYSTEM, INSIGHTS_SYSTEM, NOTES_SYSTEM, SUMMARY_SYSTEM } from './prompts.js';
 
-// ~12k tokens per request
 const MAX_CHARS = 48_000;
 
 const KNOWN_PROVIDERS = [
@@ -17,12 +16,10 @@ const KNOWN_PROVIDERS = [
 ];
 const PROVIDER = KNOWN_PROVIDERS.find(([re]) => re.test(env.LLM_BASE_URL))?.[1] ?? 'The AI provider';
 
-// shared across jobs so we don't hit rate limits
 const limit = createLimiter(env.LLM_CONCURRENCY);
 const RATE_LIMIT_RETRIES = 3;
 const MAX_INLINE_WAIT_MS = 60_000;
 
-// retry on 429, wait as long as the provider asks
 async function chatJson(system, user) {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -31,7 +28,7 @@ async function chatJson(system, user) {
       const wait = err.code === 'AI_RATE_LIMITED' ? (err.retryAfterMs ?? 5000 * 2 ** attempt) : Infinity;
       if (attempt >= RATE_LIMIT_RETRIES || wait > MAX_INLINE_WAIT_MS) throw err;
       logger.warn(`${PROVIDER} rate limited, waiting before retry`, { waitMs: wait, attempt: attempt + 1 });
-      await sleep(wait + Math.random() * 1000); // jitter
+      await sleep(wait + Math.random() * 1000);
     }
   }
 }
@@ -72,7 +69,6 @@ async function condense(transcript) {
   return fit(notes.join('\n\n'));
 }
 
-// condense long transcripts in chunks, cached by hash so parallel calls reuse it
 const condenseCache = new Map();
 const CONDENSE_CACHE_SIZE = 8;
 function fit(transcript) {
@@ -81,7 +77,7 @@ function fit(transcript) {
   let pending = condenseCache.get(key);
   if (!pending) {
     pending = condense(transcript);
-    pending.catch(() => condenseCache.delete(key)); // don't cache failures
+    pending.catch(() => condenseCache.delete(key));
     condenseCache.set(key, pending);
     if (condenseCache.size > CONDENSE_CACHE_SIZE) condenseCache.delete(condenseCache.keys().next().value);
   }
