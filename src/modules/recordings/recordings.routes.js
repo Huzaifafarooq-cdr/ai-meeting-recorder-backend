@@ -89,6 +89,12 @@ recordingsRouter.post(
   asyncHandler(async (req, res) => res.json({ recording: await service.finalize(req.user.id, req.params.id, req.body) }))
 );
 
+recordingsRouter.post(
+  '/:id/recover',
+  validId(),
+  asyncHandler(async (req, res) => res.json({ recording: await service.recover(req.user.id, req.params.id) }))
+);
+
 recordingsRouter.put(
   '/:id/audio',
   validId(),

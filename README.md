@@ -142,6 +142,8 @@ Leave `VITE_API_URL` empty to use the Vite dev proxy (`/api` and `/ws` go to `ht
 
 In development (`NODE_ENV` other than `production`), the backend accepts requests and WebSocket connections from any `localhost` / `127.0.0.1` port. In production, only the origins listed in `CLIENT_ORIGIN` are allowed.
 
+**Deploying the frontend to Vercel**: `vercel.json` rewrites every path to `index.html`, so reloading or opening a deep link such as `/record` or `/recordings/:id` works instead of returning Vercel's 404. Set `VITE_API_URL` to the backend URL in the Vercel project settings, and add the Vercel URL to the backend's `CLIENT_ORIGIN`.
+
 Open http://localhost:5173, create an account, then record a meeting or upload an audio file.
 
 ### Useful scripts
@@ -294,7 +296,8 @@ How the design supports thousands of concurrent users:
 | Microphone unplugged or recorder error mid-meeting | Recording stops cleanly; captured audio is kept and submitted |
 | Network drop while recording | Recording continues locally; the socket reconnects and resends missing chunks; if chunks are still missing, the full file is uploaded on stop |
 | Upload fails after recording | Overlay with **Retry** and **Download audio**, so nothing is lost |
-| Tab closed or crash mid-recording | A sweeper processes whatever audio reached the server, with an `INTERRUPTED` warning |
+| Page reloaded mid-recording | The Record page remembers the active recording for that tab and offers **Process it now**, which processes the audio that already reached the server (`POST /recover`), with an `INTERRUPTED` warning |
+| Tab closed or crash mid-recording | A sweeper processes whatever audio reached the server after 30 minutes of inactivity, with an `INTERRUPTED` warning |
 | Large files | Size limits on client and server, upload progress, cancel option |
 | Expired access token | Refreshed silently (single-flight); if refresh fails, "session expired" message and redirect to login |
 | AI provider unavailable / timeout / rate limit | Automatic retries with backoff from the failed stage, then a clear error and manual Retry |
@@ -382,6 +385,7 @@ How the design supports thousands of concurrent users:
 | `PATCH /api/recordings/:id` · `/speakers` | Rename the meeting or its speakers |
 | `PATCH /api/recordings/:id/action-items/:index` | Tick or untick an action item (`{ done }`) |
 | `POST /api/recordings/:id/retry` | Retry from the failed stage |
+| `POST /api/recordings/:id/recover` | Process an interrupted live recording now (e.g. after a page reload) |
 | `GET /api/recordings/:id/media-url` → `GET /api/media/:id?token=` | Signed audio playback |
 | `DELETE /api/recordings/:id` | Delete a recording, its audio and transcript |
 | `WS /ws/live?recordingId&token` · `WS /ws/events?token` | Live audio and transcript · progress events |

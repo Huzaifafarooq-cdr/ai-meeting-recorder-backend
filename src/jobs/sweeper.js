@@ -8,6 +8,20 @@ const STALE_MS = 30 * 60 * 1000;
 const INTERVAL_MS = 5 * 60 * 1000;
 let timer = null;
 
+export async function recoverRecording(rec) {
+  const file = await stat(rec.audio?.key);
+  if (file && file.size > 1024) {
+    rec.addWarning('INTERRUPTED', 'This recording was interrupted (page reloaded, connection lost or browser closed). The audio captured before the interruption was processed.');
+    await enqueueProcessing(rec);
+    logger.info('Recovered interrupted recording', { recording: rec.id });
+    return;
+  }
+  rec.status = 'failed';
+  rec.error = { code: 'RECORDING_ABANDONED', message: 'The recording was interrupted before any audio was captured.', stage: 'upload', retryable: false };
+  await rec.save();
+  emitRecordingUpdate(rec);
+}
+
 export async function sweepAbandonedRecordings() {
   const cutoff = new Date(Date.now() - STALE_MS);
   const stale = await Recording.find({
@@ -15,19 +29,7 @@ export async function sweepAbandonedRecordings() {
     $or: [{ lastActivityAt: { $lt: cutoff } }, { lastActivityAt: null, createdAt: { $lt: cutoff } }],
   }).limit(50);
 
-  for (const rec of stale) {
-    const file = await stat(rec.audio?.key);
-    if (file && file.size > 1024) {
-      rec.addWarning('INTERRUPTED', 'This recording was interrupted (connection lost or browser closed). The audio captured before the interruption was processed.');
-      await enqueueProcessing(rec);
-      logger.info('Recovered interrupted recording', { recording: rec.id });
-    } else {
-      rec.status = 'failed';
-      rec.error = { code: 'RECORDING_ABANDONED', message: 'The recording was interrupted before any audio was captured.', stage: 'upload', retryable: false };
-      await rec.save();
-      emitRecordingUpdate(rec);
-    }
-  }
+  for (const rec of stale) await recoverRecording(rec);
 }
 
 export function startSweeper() {

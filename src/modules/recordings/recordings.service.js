@@ -6,6 +6,7 @@ import { Job } from '../../models/Job.js';
 import { AppError, badRequest, conflict, notFound } from '../../lib/AppError.js';
 import { audioExists, audioKey, moveInto, remove, stat } from '../../storage/index.js';
 import { enqueueProcessing } from '../../jobs/queue.js';
+import { recoverRecording } from '../../jobs/sweeper.js';
 import { emitRecordingDeleted, emitRecordingUpdate } from '../../realtime/eventBus.js';
 import { closeLiveSession } from '../../realtime/liveHandler.js';
 import { audioMimeFor } from '../../middleware/upload.js';
@@ -79,6 +80,15 @@ export async function finalize(userId, id, { durationSec, totalChunks }) {
     });
   }
   await enqueueProcessing(rec);
+  return toDetail(rec);
+}
+
+export async function recover(userId, id) {
+  const rec = await findOwned(userId, id);
+  if (rec.status !== 'recording') return toDetail(rec);
+  closeLiveSession(id);
+  await new Promise((r) => setTimeout(r, 500));
+  await recoverRecording(rec);
   return toDetail(rec);
 }
 
