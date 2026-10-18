@@ -201,7 +201,7 @@ export async function getDetail(userId, id) {
 export async function getTranscript(userId, id, kind) {
   const rec = await findOwned(userId, id, '_id speakers');
   const segments = await TranscriptSegment.find({ recording: rec._id, kind })
-    .sort({ idx: 1 })
+    .sort(kind === 'live' ? { start: 1, idx: 1 } : { idx: 1 })
     .select('-_id idx speaker start end text cleanText confidence')
     .lean();
   return { kind, segments };

@@ -205,6 +205,7 @@ Open http://localhost:5173, create an account, then record a meeting or upload a
 1. `MediaRecorder` emits a WebM/Opus chunk every 250 ms. Each chunk is framed as `[flags][seq:u32][bytes]` and sent over `/ws/live`.
 2. The gateway appends each chunk to storage in order and forwards it to a Deepgram streaming session (`interim_results`, `diarize`).
 3. Results are split into speaker runs. Interim hypotheses are pushed as partials (grey italics in the UI). Final segments replace them and are saved in batches as `kind: 'live'` segments.
+4. Streaming diarization needs time to learn the voices, so early on it tends to put everyone under one speaker. Every few seconds early on (6 s, 12 s, 20 s, 30 s…) and less often later (up to about 7 min), the gateway re-transcribes the audio recorded so far as a whole file in the background. If that finds more than one speaker, recent live lines are relabelled to match (the text stays as it was, labels are kept consistent with what is already on screen, and lines older than ~15 s are left alone so the screen does not keep changing) and the browser gets a `live_reset` with the corrected lines. Later live lines are mapped to the same labels. If it finds only one speaker, nothing changes.
 
 ### When the user stops
 
