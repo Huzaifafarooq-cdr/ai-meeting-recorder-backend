@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { WebSocketServer } from 'ws';
-import { allowedOrigins } from '../config/env.js';
+import { isAllowedOrigin } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { verifyAccessToken } from '../modules/auth/tokens.js';
 import { subscribeUser } from './eventBus.js';
@@ -29,7 +29,7 @@ export function attachWebSocketServer(server) {
     if (url.pathname !== '/ws/live' && url.pathname !== '/ws/events') return reject(socket, 404, 'Not Found');
 
     const origin = req.headers.origin;
-    if (origin && !allowedOrigins.includes(origin)) return reject(socket, 403, 'Forbidden');
+    if (origin && !isAllowedOrigin(origin)) return reject(socket, 403, 'Forbidden');
 
     let user;
     try {

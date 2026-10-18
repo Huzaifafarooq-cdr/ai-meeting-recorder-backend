@@ -49,3 +49,9 @@ if (!parsed.success) {
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === 'production';
 export const allowedOrigins = env.CLIENT_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean);
+
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+export function isAllowedOrigin(origin) {
+  return allowedOrigins.includes(origin) || (!isProd && LOCAL_ORIGIN.test(origin));
+}

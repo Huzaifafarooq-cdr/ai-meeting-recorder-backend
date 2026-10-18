@@ -4,7 +4,7 @@ import { asyncHandler } from '../../lib/asyncHandler.js';
 import { notFound } from '../../lib/AppError.js';
 import { validId } from '../../middleware/validate.js';
 import { Recording } from '../../models/Recording.js';
-import { findStored, openStoredStream, resolvePath, stat } from '../../storage/index.js';
+import { extForMime, findStored, openStoredStream, resolvePath, stat } from '../../storage/index.js';
 import { verifyMediaToken } from '../auth/tokens.js';
 
 export const mediaRouter = Router();
@@ -17,18 +17,26 @@ function parseRange(header, size) {
   return start <= end && start < size ? { start, end } : 'invalid';
 }
 
+function attachment(rec) {
+  const ext = extForMime(rec.audio.mimeType);
+  const base = (rec.title || 'recording').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) || 'recording';
+  const ascii = base.replace(/[^\x20-\x7e]/g, '_');
+  return `attachment; filename="${ascii}.${ext}"; filename*=UTF-8''${encodeURIComponent(`${base}.${ext}`)}`;
+}
+
 mediaRouter.get(
   '/:id',
   validId(),
   asyncHandler(async (req, res) => {
     const { userId } = verifyMediaToken(req.query.token, req.params.id);
-    const rec = await Recording.findOne({ _id: req.params.id, user: userId }).select('audio');
+    const rec = await Recording.findOne({ _id: req.params.id, user: userId }).select('audio title');
     if (!rec?.audio?.key) throw notFound('Audio');
     const headers = {
       'Content-Type': rec.audio.mimeType || 'application/octet-stream',
       'Cache-Control': 'private, max-age=600',
       'Cross-Origin-Resource-Policy': 'cross-origin',
     };
+    if (req.query.download === '1') headers['Content-Disposition'] = attachment(rec);
 
     const stored = await findStored(rec.audio.key);
     if (!stored) {
