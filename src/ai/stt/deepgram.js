@@ -7,13 +7,16 @@ import { speakerLabel } from '../../lib/text.js';
 
 const BASE = 'api.deepgram.com/v1/listen';
 
-function splitBySpeaker(words, offset) {
+// new run on every speaker change; optionally also on long pauses and after long sentences
+function splitBySpeaker(words, offset, { maxGap = Infinity, maxWords = Infinity } = {}) {
   const runs = [];
   for (const w of words) {
     const speaker = speakerLabel(w.speaker ?? 0);
     const last = runs[runs.length - 1];
     const token = w.punctuated_word ?? w.word;
-    if (last && last.speaker === speaker) {
+    const pause = last ? w.start + offset - last.end : 0;
+    const longSentenceDone = last && last.words.length >= maxWords && /[.?!]$/.test(last.words[last.words.length - 1]);
+    if (last && last.speaker === speaker && pause <= maxGap && !longSentenceDone) {
       last.words.push(token);
       last.end = w.end + offset;
       last.conf.push(w.confidence ?? 0.9);
@@ -37,7 +40,6 @@ export async function transcribeFile({ filePath, mimeType }) {
     diarize: 'true',
     punctuate: 'true',
     smart_format: 'true',
-    utterances: 'true',
   });
   const json = await fetchJson(
     `https://${BASE}?${params}`,
@@ -50,11 +52,10 @@ export async function transcribeFile({ filePath, mimeType }) {
     { provider: 'Deepgram', timeoutMs: Math.max(env.AI_TIMEOUT_MS, 10 * 60 * 1000) }
   );
 
-  const utterances = json.results?.utterances ?? [];
+  // built from per-word speakers: Deepgram's utterances can span a speaker change and hide it
+  const words = json.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
   return {
-    segments: utterances
-      .filter((u) => u.transcript?.trim())
-      .map((u) => ({ speaker: speakerLabel(u.speaker), start: u.start, end: u.end, text: u.transcript, confidence: u.confidence })),
+    segments: splitBySpeaker(words, 0, { maxGap: 1.5, maxWords: 40 }).filter((s) => s.text.trim()),
     durationSec: json.metadata?.duration,
     language: json.results?.channels?.[0]?.detected_language ?? env.STT_LANGUAGE,
   };
